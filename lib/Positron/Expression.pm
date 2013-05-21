@@ -1,17 +1,17 @@
 package Positron::Expression;
-our $VERSION = 'v0.0.1'; # VERSION
+our $VERSION = 'v0.0.2'; # VERSION
 
-=head1 NAME 
+=head1 NAME
 
 Positron::Expression - a simple language for template parameters
 
 =head1 VERSION
 
-version v0.0.1
+version v0.0.2
 
 =cut
 
-use v5.8;
+use v5.10;
 use strict;
 use warnings;
 
