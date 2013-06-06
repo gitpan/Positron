@@ -35,6 +35,11 @@ is_deeply($template->process( [1, '/not the next', 2, 3], $data), [1, 3], "Struc
 is_deeply($template->process( [1, '//not the next two', 2, 3], $data), [1 ], "Double structural comments remove all next");
 is_deeply($template->process( ['//not the nexts', 1, 2, 3], $data), [], "Double structural comments can clear array");
 
+is_deeply($template->process( [1, ['/-not the next', 2, 3], 4], $data), [1, 3, 4], "Structural comments with -");
+is_deeply($template->process( [1, ['//-not the next two', 2, 3], 4], $data), [1, 4], "Double structural comments with -");
+is_deeply($template->process( [1, '<', ['/not the next', 2, 3], 4], $data), [1, 3, 4], "Structural comments with <");
+is_deeply($template->process( [1, '<', ['//not the next two', 2, 3], 4], $data), [1, 4], "Double structural comments with <");
+
 is_deeply($template->process({ '/not this' => [], 'this' => {}}, $data), {'this' => {}}, "Comment hash keys remove key and value");
 # do we need this yet?
 dies_ok { $template->process({ one => '/not this' },$data); } "Can't comment out a value";

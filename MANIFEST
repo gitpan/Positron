@@ -19,12 +19,12 @@ t/Positron/DataTemplate/07-switch.t
 t/Positron/DataTemplate/08-comments.t
 t/Positron/DataTemplate/09-includes.t
 t/Positron/DataTemplate/10-functions.t
+t/Positron/DataTemplate/lists.json
 t/Positron/DataTemplate/plain.json
 t/Positron/DataTemplate/structure.json
 t/Positron/Environment/01-immutable.t
 t/Positron/Environment/02-mutable.t
 t/Positron/Environment/03-parent.t
-t/Positron/Environment/04-compound.t
 t/Positron/Expression/00-load.t
 t/Positron/Expression/01-simple.t
 t/Positron/Expression/02-booleans.t

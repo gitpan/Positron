@@ -28,6 +28,13 @@ my $data = {
             return { key => 'value' };
         }
     },
+    getlist => sub {
+        if (@_) {
+            return ( 1 .. shift @_ );
+        } else {
+            return 0;
+        }
+    },
 };
 
 # Do we even allow this? Just means "with no arguments"...
@@ -39,5 +46,11 @@ is_deeply($template->process([5, '^double', 3, 7], $data), [5, 6, 7], "With surr
 
 is_deeply($template->process( { 'one' => '^gethash' }, $data), { 'one' => { key => 'value' } }, "In hash as value"); 
 is_deeply($template->process( { 'one' => 'eins', '^gethash' => 'passed' }, $data), { 'one' => 'eins', arg => 'passed' }, "In hash as key"); 
+
+is_deeply($template->process([ 'a', [ '^getlist', 3 ], 'b'], $data), ['a', [ 1, 2, 3 ], 'b'], "List generation");
+is_deeply($template->process([ 'a', [ '^-getlist', 3 ], 'b'], $data), ['a', 1, 2, 3, 'b'], "List generation with -");
+is_deeply($template->process([ 'a', '<', [ '^getlist', 3 ], 'b'], $data), ['a', 1, 2, 3, 'b'], "List generation with <");
+
+is_deeply($template->process( { zero => 0, '< 1' => '^gethash' }, $data), { zero => 0, key => 'value' }, "In hash with <"); 
 
 done_testing();

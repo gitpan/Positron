@@ -25,7 +25,11 @@ my $data = {
 is_deeply($template->process( [ '?if', 'then', 'else' ], $data ), 'then', "With scalar value");
 is_deeply($template->process( [ '?if', [1, 2], [3, 4] ], $data ), [1, 2], "With array value");
 is_deeply($template->process( [ 'foo', [ '?if', [1, 2], [3, 4] ], 'bar'], $data ), ['foo', [ 1, 2 ], 'bar' ], "Inside a list");
-# TODO: with '-' and '<'
+
+is_deeply($template->process( [ 'foo', [ '?-if', [1, 2], [3, 4] ], 'bar'], $data ), ['foo', 1, 2, 'bar' ], "Interpolation with -");
+is_deeply($template->process( [ 'foo', '<', [ '?if', [1, 2], [3, 4] ], 'bar'], $data ), ['foo', 1, 2, 'bar' ], "Interpolation with <");
+is_deeply($template->process( [ 'foo', '<', [ '?-if', [1, 2], [3, 4] ], 'bar'], $data ), ['foo', 1, 2, 'bar' ], "Interpolation with both");
+
 is_deeply($template->process( { key => ['?if', 'value', 'non-value']}, $data ), { key => 'value' }, "As hash value");
 is_deeply($template->process( [ 0, ['?if', 1 ] ], $data ), [0, 1], "No else-clause when true");
 is_deeply($template->process( [ 0, ['?false', 1 ] ], $data ), [0], "No else-clause when false");
