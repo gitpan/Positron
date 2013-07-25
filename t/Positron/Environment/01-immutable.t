@@ -39,5 +39,26 @@ is_deeply( $env->get('key2'), ['value2', 'value3'] , "Scalar value retrieved");
 
 dies_ok { $env->set('key1', 'newvalue') } "Immutable dies on set";
 
+lives_and {
+    $env = Positron::Environment->new(
+        "a string as data",
+        { immutable => 1},
+    );
+    # This should always return undef
+    ok( !defined($env->get('string')) );
+} "Environment works with scalar data";
+
+lives_and {
+    $env = Positron::Environment->new(
+        [2, 3, 5, 7, 11],
+        { immutable => 1},
+    );
+    ok($env);
+} "Constructor works with array data";
+lives_and { is( $env->get(1), 3 ); } "Can access by index";
+lives_and { is( $env->get('string'), 2 ); } "Can implicitly access by non-numeric index";
+lives_and { is( $env->get(3.2), 7 ); } "Can implicitly access by non-integer index";
+lives_and { is( $env->get(-1), 11 ); } "Can access by negative index";
+
 done_testing();
 

@@ -1,5 +1,5 @@
 package Positron::Environment;
-our $VERSION = 'v0.0.3'; # VERSION
+our $VERSION = 'v0.0.4'; # VERSION
 
 =head1 NAME
 
@@ -7,7 +7,7 @@ Positron::Environment - container class for template parameters
 
 =head1 VERSION
 
-version v0.0.3
+version v0.0.4
 
 =head1 SYNOPSIS
 
@@ -36,12 +36,32 @@ asked-for key, it will ask its parent in turn.
 Note that if a key refers to C<undef> as its value, this counts as "containing something",
 and the parent will not be asked.
 
+Getting or setting the special key C<_> (a single underscore) accesses the entire data,
+i.e. the hash that was used in the constructor.
+These requests are never passed to any parents.
+
+=head2 Non-hash data
+
+Although C<Positron::Environment> is built for hashes, it can also be used with plain
+scalar data (strings, numbers, C<undef>) or array references.
+Calling C<get> when the data is a string results in C<undef> being returned.
+Calling C<set> when the data is a string results in a warning, and returns C<undef>,
+but currently does not raise an exception. Just don't expect to get that value back
+again.
+
+Calling C<get> or C<set> when the data is an array (reference) works by first converting
+the key to an integer via the builtin C<int> function.
+This means that alphabetic keys will be coerced to the number C<0> (with the regular
+Perl warning) and floating point values get rounded towards 0.
+On the other hand, this means that negative keys will start counting from the back of
+the array.
+
 =cut
 
 use v5.10;
 use strict;
 use warnings;
-use Carp qw(croak);
+use Carp qw(croak carp);
 
 =head1 CONSTRUCTOR
 
@@ -92,16 +112,26 @@ about this key (i.e. it does not exist in the data hash), it returns C<undef>,
 unless a parent environment is set. In this case, it will recursively query
 its parent for the key.
 
+The special key C<_> returns the entire data of this environment, never
+querying the parent.
+
 =cut
 
 sub get {
     my ($self, $key) = @_;
-    if (exists $self->{'data'}->{$key}) {
+    if ($key eq '_') {
+        return $self->{'data'};
+    }
+    if (ref($self->{'data'}) eq 'HASH' and exists $self->{'data'}->{$key}) {
         return $self->{'data'}->{$key};
+    } elsif (ref($self->{'data'}) eq 'ARRAY') {
+        # What about parents with array refs?
+        return $self->{'data'}->[int($key)];
+    # N.B.: other scalars (non-refs, objects) never perform subqueries, always 'undef'
     } elsif ($self->{'parent'}) {
         return $self->{'parent'}->get($key);
     }
-    return;
+    return undef; # always scalar
 }
 
 =head2 set
@@ -113,6 +143,8 @@ This call will croak if the environment has been marked as immutable.
 Setting the value to C<undef> will effectively mask any parent; a C<get>
 call will return C<undef> even if the parent has a defined value.
 
+The special key C<_> sets the entire data of this environment.
+
 Returns the value again I<(this may change in future versions)>.
 
 =cut
@@ -122,7 +154,15 @@ Returns the value again I<(this may change in future versions)>.
 sub set {
     my ($self, $key, $value) = @_;
     croak "Immutable environment being changed" if $self->{'immutable'};
-    $self->{'data'}->{$key} = $value;
+    if ($key eq '_') {
+        $self->{'data'} = $value;
+    } elsif (ref($self->{'data'}) eq 'ARRAY') {
+        $self->{'data'}->[int($key)] = $value;
+    } elsif (ref($self->{'data'}) eq 'HASH') {
+        $self->{'data'}->{$key} = $value;
+    } else {
+        carp "Setting an environment which is neither hash nor array";
+    }
     return $value;
 }
 

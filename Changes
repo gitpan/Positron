@@ -1,4 +1,15 @@
+v0.0.4    2013-07-25 18:19:55 UTC
+
+  - Positron::Environment can take arbitrary scalar data
+  - Positron::Environment with special key '_' which gets / sets
+    the entire data
+  - Added wrapping construct ':'.
+
 v0.0.3    2013-06-06 18:26:18 UTC
+
+  - Interpolation.
+  - Positron::Expression::reduce method added
+  - More documentation.
 
 v0.0.2    2013-05-21 17:59:14 UTC
 
