@@ -20,6 +20,8 @@ t/Positron/DataTemplate/08-comments.t
 t/Positron/DataTemplate/09-includes.t
 t/Positron/DataTemplate/10-functions.t
 t/Positron/DataTemplate/11-wraps.t
+t/Positron/DataTemplate/12-assignment.t
+t/Positron/DataTemplate/13-escaping.t
 t/Positron/DataTemplate/lists.json
 t/Positron/DataTemplate/plain.json
 t/Positron/DataTemplate/structure.json

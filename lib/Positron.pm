@@ -1,5 +1,5 @@
 package Positron;
-our $VERSION = 'v0.0.4'; # VERSION
+our $VERSION = 'v0.0.5'; # VERSION
 
 =head1 NAME
 
@@ -7,7 +7,7 @@ Positron - a family of templating and markup modules
 
 =head1 VERSION
 
-version v0.0.4
+version v0.0.5
 
 =head1 SYNOPSIS
 
