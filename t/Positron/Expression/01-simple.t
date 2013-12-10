@@ -5,6 +5,7 @@ use strict;
 use warnings;
 
 use Test::More;
+use Test::Exception;
 use Positron::Environment;
 
 BEGIN {
@@ -19,6 +20,9 @@ my $environment = Positron::Environment->new({
 
 is(Positron::Expression::evaluate(undef, $environment), undef, 'Undef');
 is(Positron::Expression::evaluate('', $environment), undef, 'Empty expression'); # TODO: error instead?
+# dies_ok {
+#     Positron::Expression::evaluate('', $environment);
+# } 'Empty string is a syntax error';
 
 is(Positron::Expression::evaluate('0', $environment), 0, 'Literal number (integer)');
 is(Positron::Expression::evaluate('0.1', $environment), 0.1, 'Literal number (float)');

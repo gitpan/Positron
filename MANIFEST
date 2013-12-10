@@ -39,3 +39,4 @@ t/Positron/Expression/01-simple.t
 t/Positron/Expression/02-booleans.t
 t/Positron/Expression/03-dotted.t
 t/Positron/Expression/04-underscore.t
+t/Positron/Expression/05-syntax.t

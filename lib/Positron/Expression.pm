@@ -1,5 +1,5 @@
 package Positron::Expression;
-our $VERSION = 'v0.0.5'; # VERSION
+our $VERSION = 'v0.0.6'; # VERSION
 
 =head1 NAME
 
@@ -7,7 +7,7 @@ Positron::Expression - a simple language for template parameters
 
 =head1 VERSION
 
-version v0.0.5
+version v0.0.6
 
 =head1 SYNOPSIS
 
@@ -27,8 +27,12 @@ The result is a scalar value.
 
 The grammar is basically built up of the following rules.
 The exact grammar is available as a package variable
-C<$Positron::Expression::grammar>; this is a string which is fed to
+C<$Positron::Expression::grammar>; this is a string which could be fed to
 L<Parse::RecDescent> starting at the token C<expression>.
+
+However, the L<Parse::RecDescent> path has been replaced with a version
+using plain regular expressions, so the string is no longer the direct
+definition of the grammar.
 
 =head2 Whitespace
 
@@ -190,12 +194,14 @@ use strict;
 use warnings;
 
 use Carp qw(croak);
-use Data::Dump qw(dump);
+use Data::Dump qw(pp);
+use IO::String qw();
 use Positron::Environment;
-use Parse::RecDescent;
+#use Parse::RecDescent;  # obsolete, see below
 use Scalar::Util qw(blessed);
 
-# The following grammer creates a "parse tree" 
+# The following grammar is used by Parse::RecDescent to create a "parse tree".
+# Note that the Parse::RecDescent path is currently obsolete.
 
 our $grammar = <<'EOT';
 # We start with our "boolean / ternary" expressions
@@ -226,6 +232,7 @@ funccall: identifier '(' expression(s? /\s*,\s*/) ')' { ['funccall', $item[1], @
 methcall: key '(' expression(s? /\s*,\s*/) ')' { ['methcall', $item[1], @{$item[3]}] }
 EOT
 
+# A Parse::RecDescent object; currently obsolete 
 our $parser = undef;
 
 =head1 FUNCTIONS
@@ -235,7 +242,7 @@ our $parser = undef;
     my $value = Positron::Expression::evaluate($string, $environment);
 
 Evaluates the expression in C<$string> with the L<Positron::Environment> C<$env>.
-The result is always a scalar value, which may be a true scalar or a reference.
+The result is always a scalar value, which may be a plain scalar or a reference.
 For example, the expression C<x> with the environment C<< { x => [1] } >>
 will evaluate to a reference to an array with one element.
 
@@ -243,6 +250,7 @@ will evaluate to a reference to an array with one element.
 
 sub evaluate {
     my ($string, $environment) = @_;
+    return undef unless defined $string and $string ne '';
     my $tree = parse($string);
     # Force scalar context, always
     return scalar(_evaluate($tree, $environment));
@@ -265,15 +273,245 @@ See also C<reduce> to continue the evaluation.
 
 =cut
 
-sub parse {
+# Obsolete interface based on Parse::RecDescent
+sub parse_recd {
     my ($string) = @_;
 
     # lazy build, why not
     if (not $parser) {
+        require Parse::RecDescent;
         $parser = Parse::RecDescent->new($grammar);
+    }
+    # We lazy-build the parser in any case, only then do we "fast abort"
+    return undef unless defined $string and $string ne '';
+    my $try_string = $string;
+    my $error_string = '';
+    #local *STDERR = IO::String->new($error_string);
+    local *STDERR;
+    open(STDERR, '>', \$error_string);
+    my $tree = $parser->expression(\$try_string);
+    #croak "Error string: $error_string";
+    if ($error_string) {
+        croak "Oh no: $error_string";
+    }
+    if ($try_string =~ m{ \S }xms) {
+        $try_string =~ s{\A \s+ | \s+ \z}{}xmsg;
+        croak "Expression error: superfluous text $try_string in expression $string";
     }
     return $parser->expression($string);
 }
+
+# current home-grown version
+sub parse {
+    my ($string) = @_;
+    return undef unless defined $string;
+    $string =~ s{\A\s+}{}xms; $string =~ s{\s+\z}{}xms;
+    return undef if $string eq '';
+    my $expression = expression($string);
+    if ($string =~ m{ \G \s* \S}xms) {
+        croak "Syntax error: Superfluous text " . _critisize($string);
+    }
+    return $expression;
+}
+
+# Starting characters:
+# identifier: ID_Start
+# key: ID_Start
+# number: + - \d
+# integer: + - \d
+# funccall: ID_Start
+# key: ID_Start
+# string: " ' `
+# lterm: ( ID_Start $
+# rterm: ( ID_Start $ " ' ` \d
+# operand: " ' ` \d ( ID_Start $
+# alternative: ! " ' ` \d ( ID_Start $
+# expression: ! " ' ` \d ( ID_Start $
+
+# Helper for 'parse'
+sub expression {
+    my $alternative = alternative($_[0]);
+    my @others = ();
+    #$_[0] =~ m{\G\s*}gc; # fast forward 
+    while ($_[0] =~ m{\G \s* ([?:]) \s* }xmsgc) {
+        # another alternative
+        my $operator = $1;
+        push @others, ($operator, alternative($_[0])); 
+    }
+    return (@others) ? ['expression', $alternative, @others] : $alternative;
+}
+
+# Helper for 'parse'
+sub alternative {
+    if ($_[0] =~ m{\G \s* (!) \s*}xmsgc) {
+        return ['not', alternative($_[0])];
+    } else {
+        return operand($_[0]);
+    }
+}
+
+# Helper for 'parse'
+sub operand {
+    if ($_[0] =~ m{\G \s* (["'`])}xms) {
+        return string($_[0], $1);
+    } elsif ($_[0] =~ m{\G \s* [\d+-]}xms) {
+        return number($_[0]);
+    } elsif ($_[0] =~ m{\G \s* [([:alpha:]_\$]}xms) {
+        my $lterm = lterm($_[0]);
+        my @rterms = ();
+        while ($_[0] =~ m{\G \s* \. \s*}xmsgc) {
+            push @rterms, rterm($_[0]);
+        }
+        return @rterms ? ['dot', $lterm, @rterms] : $lterm;
+    } else {
+        croak q{Syntax error: Operand expected } . _critisize($_[0]);
+    }
+}
+
+# Helper for 'parse'
+sub lterm {
+    if ($_[0] =~ m{ \G \s* \( \s* }xmsgc) {
+        my $expression = expression($_[0]);
+        if ($_[0] =~ m{ \G \s* \) \s* }xmsgc) {
+            return $expression;
+        } else {
+            croak q{Syntax error: Unbalanced parentheses: missing a ')' } . _critisize($_[0]);
+        }
+    } elsif ($_[0] =~ m{ \G \s* \$ }xmsgc) {
+        my $lterm = lterm($_[0]);
+        return ['env', $lterm];
+    } elsif ($_[0] =~ m{\G \s* [[:alpha:]_] }xms) {
+        # funccall or plain identifier
+        my $identifier = identifier($_[0]);
+        if ($_[0] =~ m{ \G \s* \( \s* }xmsgc) {
+            # argument list, go for funccall
+            #$identifier = $identifier->[1]; # just the name
+            my @arguments = ();
+            while ($_[0] =~ m{ \G (?= [^)] ) }xmsgc) {
+                if (@arguments) {
+                    # need a ',' before the next argument if we have some already.
+                    # trailing ',' are a-ok.
+                    $_[0] =~ m{ \s* , [[:space:],]* }xmsgc
+                    or croak q{Syntax error: Need commas in argument list } . _critisize($_[0]);
+                }
+                push @arguments, expression($_[0]);
+            }
+            # trailing ',' are a-ok.
+            if ($_[0] =~ m{ \G [[:space:],]* \) \s* }xmsgc) {
+                return ['funccall', $identifier, @arguments];
+            } else {
+                croak q{Syntax error: Unbalanced parentheses: missing a ')' } . _critisize($_[0]);
+            }
+        } else {
+            return $identifier;
+        }
+    } else {
+        croak q{Syntax error: Term expected } . _critisize($_[0]);
+    }
+}
+
+# Helper for 'parse'
+sub rterm {
+    # second verse: same as the first!
+    if ($_[0] =~ m{ \G \s* \( \s* }xmsgc) {
+        my $expression = expression($_[0]);
+        if ($_[0] =~ m{ \G \s* \) \s* }xmsgc) {
+            return $expression;
+        } else {
+            croak q{Syntax error: Unbalanced parentheses: missing a ')' } . _critisize($_[0]);
+        }
+    } elsif ($_[0] =~ m{ \G \s* \$ }xmsgc) {
+        # yes, inside an rterm, it's an lterm, but as a key
+        my $lterm = lterm($_[0]);
+        return $lterm;
+    } elsif ($_[0] =~ m{\G \s* (?=["'`])}xmsgc) {
+        return string($_[0], $1);
+    } elsif ($_[0] =~ m{\G \s* (?=[\d+-])}xmsgc) {
+        return integer($_[0]);
+    } elsif ($_[0] =~ m{\G \s* [[:alpha:]_] }xms) {
+        # methcall or plain key
+        my $identifier = identifier($_[0]);
+        $identifier = $identifier->[1]; # just the name, in any case
+        if ($_[0] =~ m{ \G \s* \( \s* }xmsgc) {
+            # argument list, go for methcall
+            my @arguments = ();
+            while ($_[0] =~ m{ \G (?= [^)] ) }xmsgc) {
+                if (@arguments) {
+                    # need a ',' before the next argument if we have some already.
+                    # trailing ',' are a-ok.
+                    $_[0] =~ m{ \s* , [[:space:],]* }xmsgc
+                    or croak q{Syntax error: Need commas in argument list } . _critisize($_[0]);
+                }
+                push @arguments, expression($_[0]);
+            }
+            # trailing ',' are a-ok.
+            if ($_[0] =~ m{ \G [[:space:],]* \) \s* }xmsgc) {
+                return ['methcall', $identifier, @arguments];
+            } else {
+                croak q{Syntax error: Unbalanced parentheses: missing a ')' near } . _critisize($_[0]);
+            }
+        } else {
+            return $identifier;
+        }
+    } else {
+        # this can probably not be reached
+        croak q{Syntax error: Term expected } . _critisize($_[0]);
+    }
+}
+
+# Helper for 'parse'
+sub string {
+    my ($contents, $delim);
+    $delim = $_[1];
+    given ($delim) {
+        when (q{"}) { $_[0] =~ m{ \G \s* " ([^"]*) " \s* }xmsgc and $contents = $1; }
+        when (q{'}) { $_[0] =~ m{ \G \s* ' ([^']*) ' \s* }xmsgc and $contents = $1; }
+        when (q{`}) { $_[0] =~ m{ \G \s* ` ([^`]*) ` \s* }xmsgc and $contents = $1; }
+        default { die "Internal error: string called with invalid delimiter $delim"; }
+    }
+    if (defined $contents) {
+        return $contents;
+    } else {
+        croak qq{Syntax error: Missing string delimiter '$delim' } . _critisize($_[0]);
+    }
+}
+
+# Helper for 'parse'
+sub identifier {
+    if ($_[0] =~ m{ \G ( [[:alpha:]_] [[:alnum:]_]*) \s* }xmsgc) {
+        return [ 'env', $1 ];
+    } else {
+        # this can probably never be reached
+        croak q{Syntax error: Invalid identifier } . _critisize($_[0]);
+    }
+}
+
+# Helper for 'parse'
+sub number {
+    # TODO: can we get this to commit after the period?
+    if ($_[0] =~ m{ \G \s* ([+-]? \d+ (?:\.\d+)? ) \s* }xmscg) {
+        return $1;
+    } else {
+        croak q{Syntax error: Invalid number } . _critisize($_[0]);
+    }
+}
+
+# Helper for 'parse'
+sub integer {
+    if ($_[0] =~ m{ \G \s* ([+-]? \d+ ) \s* }xmscg) {
+        return $1;
+    } else {
+        croak q{Syntax error: Invalid integer } . _critisize($_[0]);
+    }
+}
+
+# Helper function: report errors "from the point of parsing"
+# The entire expression is assumed to be short, and one of many, so the entire
+# expression is included in the diagnostics to help you find it.
+sub _critisize {
+    return qq{near '} . substr($_[0], pos($_[0]) || 0, 10) . q{' in '} . $_[0] . q{'};
+}
+
 
 =head2 reduce
 
@@ -307,7 +545,7 @@ empty arrays or hashes, and a true value for non-empty ones.
 Other values, such as plain scalars, blessed references, subroutine references or C<undef>,
 are returned verbatim.
 Their truth values are therefore up to Perl (a reference blessed into a package with an
-overloaded C<bool> method may still return false, for example.
+overloaded C<bool> method may still return false, for example).
 
 =cut
 
@@ -326,6 +564,7 @@ sub true {
     }
 }
 
+# Recursive helper version of _evaluate
 sub _evaluate {
     my ($tree, $env, $obj) = @_;
     if (not ref($tree)) {
