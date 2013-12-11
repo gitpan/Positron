@@ -1,5 +1,5 @@
 package Positron::Environment;
-our $VERSION = 'v0.0.6'; # VERSION
+our $VERSION = 'v0.0.7'; # VERSION
 
 =head1 NAME
 
@@ -7,7 +7,7 @@ Positron::Environment - container class for template parameters
 
 =head1 VERSION
 
-version v0.0.6
+version v0.0.7
 
 =head1 SYNOPSIS
 

@@ -11,7 +11,8 @@ BEGIN {
     require_ok('Positron::Expression');
 }
 
-package Obj;
+package
+Obj;
 
 sub attr {
     my ($self) = @_;

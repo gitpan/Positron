@@ -1,3 +1,10 @@
+v0.0.7    2013-12-11 20:51:42 UTC
+
+  - Softening of expressions: graceful degrading to "undef"
+    when the environment is underdefined
+  - Syntax change: Expression 'hashref.func()' looks up the
+    function in the hash and calls it with no extra arguments.
+
 v0.0.6    2013-12-10 19:05:11 UTC
 
   - Replaced Parse::RecDescent with Regex-based parser for

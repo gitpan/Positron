@@ -1,5 +1,5 @@
 package Positron::Expression;
-our $VERSION = 'v0.0.6'; # VERSION
+our $VERSION = 'v0.0.7'; # VERSION
 
 =head1 NAME
 
@@ -7,7 +7,7 @@ Positron::Expression - a simple language for template parameters
 
 =head1 VERSION
 
-version v0.0.6
+version v0.0.7
 
 =head1 SYNOPSIS
 
@@ -577,14 +577,27 @@ sub _evaluate {
         } elsif ($operand eq 'funccall') {
             my $func = shift @args; # probably [env]
             $func = _evaluate($func, $env);
+            return undef unless $func and ref($func) eq 'CODE'; # skip arguments then, too
             @args = map _evaluate($_, $env), @args;
             return $func->(@args);
         } elsif ($operand eq 'methcall') {
+            # On error, do not evaluate arguments !?
             # Needs $obj argument
+            return undef unless $obj;
             my $func = shift @args; # probably literal
             $func = _evaluate($func, $env);
+            return undef unless $func;
             @args = map _evaluate($_, $env), @args;
-            return ($obj->can($func))->($obj, @args);
+            if (blessed($obj) and $obj->can($func)) {
+                # actual method call
+                return ($obj->can($func))->($obj, @args);
+            } elsif (ref($obj) eq 'HASH' and ref($obj->{$func}) eq 'CODE') {
+                # subroutine inside hash, still ok
+                return ($obj->{$func})->(@args);
+            } else {
+                # neither, abort
+                return undef;
+            }
         } elsif ($operand eq 'not') {
             my $what = _evaluate($args[0], $env);
             return ! true($what);
@@ -618,21 +631,41 @@ sub _evaluate {
                         # Attribute or similar.
                         # In Perl, still a method (without additional arguments)
                         $key = _evaluate($key, $env);
+                        return undef unless defined($key) and $left->can($key);
                         $left = ($left->can($key))->($left);
                     }
                 } elsif (ref($left) eq 'HASH') {
-                    my $key = _evaluate(shift @args, $env);
-                    $left = $left->{$key};
+                    my $key = shift @args;
+                    if (ref($key) and ref($key) eq 'ARRAY' and $key->[0] eq 'methcall' ) {
+                        # "Method", i.e. function lookup in hash
+                        $left = _evaluate($key, $env, $left);
+                    } else {
+                        # Regular hash lookup
+                        $key = _evaluate($key, $env);
+                        return undef unless defined($key);
+                        $left = $left->{$key};
+                    }
                 } elsif (ref($left) eq 'ARRAY') {
                     my $key = _evaluate(shift @args, $env);
-                    $left = $left->[ $key ];
+                    return undef unless defined($key);
+                    no warnings 'numeric';
+                    $left = $left->[ int($key) ];
                 } else {
-                    die "Asked to subselect a scalar";
+                    _warn("Asked to subselect a scalar");
+                    return undef;
                 }
             }
             return $left;
         }
     }
+}
+
+# Helper function, if diagnostics are requested, outputs the "less than ideal"
+# condition the user may find interesting.
+sub _warn {
+    my ($message) = @_;
+    # TODO: warn the $message if debugging is requested
+    return;
 }
 
 1; # End of Positron::Expression
