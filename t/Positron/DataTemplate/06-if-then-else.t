@@ -43,4 +43,23 @@ is_deeply($template->process( ['?empty_hash', 1, 2], $data ), 2, "Empty hash cou
 
 is_deeply($template->process( [ '?if', '&list', 'else' ], $data ), [1], "Evaluate value");
 is_deeply($template->process( [ '?if', ['?false', 3, 4 ], 'else' ], $data ), '4', "Double if");
+
+# Hashes: interpolating and "conditional keys"
+
+is_deeply(
+    $template->process( { '< 1' => ['?if', { 'a' => 'b' }, { 'c' => 'd' }], 'this' => 'stays' }, $data),
+    {'a' => 'b', 'this' => 'stays'}, "Conditional hash slice (true)"
+);
+is_deeply(
+    $template->process( { '< 1' => ['?false', { 'a' => 'b' }, { 'c' => 'd' }], 'this' => 'stays' }, $data),
+    {'c' => 'd', 'this' => 'stays'}, "Conditional hash slice (false)"
+);
+is_deeply(
+    $template->process( { '?if' => { 'a' => 'b' }, 'this' => 'stays' }, $data),
+    {'a' => 'b', 'this' => 'stays'}, "Conditional key (true)"
+);
+is_deeply(
+    $template->process( { '?false' => { 'a' => 'b' }, 'this' => 'stays' }, $data),
+    {'this' => 'stays'}, "Conditional key (false)"
+);
 done_testing();

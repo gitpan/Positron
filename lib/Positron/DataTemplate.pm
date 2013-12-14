@@ -1,5 +1,5 @@
 package Positron::DataTemplate;
-our $VERSION = 'v0.0.7'; # VERSION
+our $VERSION = 'v0.0.8'; # VERSION
 
 =head1 NAME
 
@@ -7,7 +7,7 @@ Positron::DataTemplate - templating plain data to plain data
 
 =head1 VERSION
 
-version v0.0.7
+version v0.0.8
 
 =head1 SYNOPSIS
 
@@ -424,7 +424,7 @@ sub _process_hash {
     foreach my $key (keys %$template) {
         if ($key =~ m{ \A \% (.*) \z }xms) {
             $hash_construct = [$key, $1]; last;
-        } elsif ($key =~ m{ \A \? (.*) \z }xms) {
+        } elsif ($key =~ m{ \A \| (.*) \z }xms) {
             # basically auto-interpolates
             $switch_construct = [$key, $1]; last;
         }
@@ -443,13 +443,13 @@ sub _process_hash {
         }
     } elsif ($switch_construct) {
         my $e_content = Positron::Expression::evaluate($switch_construct->[1], $env); # The switch key
-        # escape the '?' by adding another one!
-        my $qe_content = ( defined $e_content and $e_content =~m{ \A \?}xms ) ? "?$e_content" : $e_content;
+        # escape the '|' by adding another one!
+        my $qe_content = ( defined $e_content and $e_content =~m{ \A \|}xms ) ? "|$e_content" : $e_content;
         if (defined $e_content and exists $template->{$switch_construct->[0]}->{$qe_content}) {
             # We have no interpolation of our own, just pass the below up.
             return $self->_process($template->{$switch_construct->[0]}->{$qe_content}, $env);
-        } elsif (exists $template->{$switch_construct->[0]}->{'?'}) {
-            return $self->_process($template->{$switch_construct->[0]}->{'?'}, $env);
+        } elsif (exists $template->{$switch_construct->[0]}->{'|'}) {
+            return $self->_process($template->{$switch_construct->[0]}->{'|'}, $env);
         } else {
             return ('', 1);
         }
@@ -537,6 +537,21 @@ sub _process_hash {
                 # interpolate
                 foreach my $k (keys %$hash_out) {
                     $result{$k} = $hash_out->{$k};
+                }
+                next;
+            }
+            if ($key =~ m{ \A \? \s* (.*)}xms) {
+                # "conditional key", syntactic sugar that interpolates the hash
+                # Short for { '< 1' => ['?cond', { ... }, {}], ... }
+                my $cond = Positron::Expression::evaluate($1, $env);
+                if ($cond) {
+                    my ($hash_out, undef) = $self->_process($value, $env);
+                    # interpolate
+                    foreach my $k (keys %$hash_out) {
+                        $result{$k} = $hash_out->{$k};
+                    }
+                } else {
+                    # nothing!
                 }
                 next;
             }
