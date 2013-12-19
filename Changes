@@ -1,3 +1,14 @@
+v0.1.0    2013-12-19 21:04:44 UTC
+
+  Positron::Template:
+  - First running version of Positron::Template
+  - Use ArrayRef handler for now; others are not implemented
+  - Supported sigils:
+    text replacement, loops, conditions, switches, comments (text and structure),
+    file includes
+  Positron::Handler::ArrayRef:
+  - Handler can optionally read JSON, not just storable
+
 v0.0.8    2013-12-14 21:05:01 UTC
 
   DataTemplate changes:

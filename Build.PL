@@ -17,7 +17,7 @@ my %module_build_args = (
     "Ben Deutsch <ben\@bendeutsch.de>"
   ],
   "dist_name" => "Positron",
-  "dist_version" => "v0.0.8",
+  "dist_version" => "v0.1.0",
   "license" => "perl",
   "module_name" => "Positron",
   "recommends" => {},
@@ -30,6 +30,7 @@ my %module_build_args = (
     "JSON" => 0,
     "Parse::RecDescent" => 0,
     "Scalar::Util" => 0,
+    "Storable" => 0,
     "perl" => "v5.10.0"
   },
   "script_files" => [],
