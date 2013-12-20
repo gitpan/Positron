@@ -1,3 +1,8 @@
+v0.1.1    2013-12-20 20:44:36 UTC
+
+  - Bugfix: used 'store' instead of 'nstore' to build a Storable
+    file to be distributed with tests -> boom!
+
 v0.1.0    2013-12-19 21:04:44 UTC
 
   Positron::Template:

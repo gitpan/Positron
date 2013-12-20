@@ -17,7 +17,7 @@ my %module_build_args = (
     "Ben Deutsch <ben\@bendeutsch.de>"
   ],
   "dist_name" => "Positron",
-  "dist_version" => "v0.1.0",
+  "dist_version" => "v0.1.1",
   "license" => "perl",
   "module_name" => "Positron",
   "recommends" => {},

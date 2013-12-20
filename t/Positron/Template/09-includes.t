@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Storable;
+use Storable qw( nstore );
 use Test::More;
 use Test::Exception;
 
@@ -51,7 +51,7 @@ sub ensure_filetype {
                 ]
             ],
         }->{$filetype} or die "Unknown filetype $filetype!";
-        store($dom, $filename) or die "Storable::store failure";
+        nstore($dom, $filename) or die "Storable::store failure";
     }
 }
 

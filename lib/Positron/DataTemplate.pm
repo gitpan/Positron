@@ -1,5 +1,5 @@
 package Positron::DataTemplate;
-our $VERSION = 'v0.1.0'; # VERSION
+our $VERSION = 'v0.1.1'; # VERSION
 
 =head1 NAME
 
@@ -7,7 +7,7 @@ Positron::DataTemplate - templating plain data to plain data
 
 =head1 VERSION
 
-version v0.1.0
+version v0.1.1
 
 =head1 SYNOPSIS
 
