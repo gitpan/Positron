@@ -1,5 +1,5 @@
 package Positron::Handler::ArrayRef;
-our $VERSION = 'v0.1.1'; # VERSION
+our $VERSION = 'v0.1.2'; # VERSION
 
 =head1 NAME
 
@@ -7,7 +7,7 @@ Positron::Handler::ArrayRef - a DOM interface for ArrayRefs
 
 =head1 VERSION
 
-version v0.1.1
+version v0.1.2
 
 =head1 SYNOPSIS
 
@@ -16,7 +16,7 @@ version v0.1.1
   my $template = [
     'a',
     { href => "/"},
-    [ 'b', undef, "Now: " ],
+    [ 'b', "Now: " ],
     "next page",
   ];
   my $data   = { foo => 'bar', baz => [ 1, 2, 3 ] };
@@ -32,7 +32,7 @@ documentation of the methods is therefore extra deep.
 =head2 ArrayRef representation
 
 In ArrayRef representation, a DOM element is simply a reference to an array
-with at least two children: the node tag, a hash (reference) with attributes,
+with at least one element: the node tag, an optional hash (reference) with attributes,
 and any children the node might have. Pure text is represented by simple strings.
 Comments, processing instructions or similar have no intrinsic representation;
 at best they can be represented as simple nodes with special tag names.
@@ -42,9 +42,9 @@ An example:
   [
     'a',
     { href => "/"},
-    [ 'b', undef, "Now: " ],
+    [ 'b', "Now: " ],
     "next page >>",
-    ['br', undef],
+    ['br'],
   ];
 
 This corresponds to the HTML representation of:
@@ -53,8 +53,9 @@ This corresponds to the HTML representation of:
 
 Note the plain C<<< >> >>> in the ArrayRef representation: text does B<not>
 need to be encoded in HTML entities.
-Note also that I<something> needs to occupy the attribute slot, even if it's
-C<undef> (which corresponds to an empty hash reference).
+Note also that the attributes, if present, need to occupy the second slot
+of the array reference. A missing attribute hash reference corresponds to
+no attributes.
 
 =cut
 
@@ -66,7 +67,7 @@ use Carp;
 
 # Format:
 # [ 'a', { href => "/"},
-#   [ 'b', undef, [ "Now: " ] ],
+#   [ 'b', [ "Now: " ] ],
 #   "next page",
 # ]
 
@@ -79,8 +80,8 @@ use Carp;
   $handler = Positron::Handler::ArrayRef->new();
 
 The constructor has no parameters; this is a very basic class.
-Normally, the template engine will call the constructor the correct
-handler for whatever it is handed as template.
+Normally, the template engine will automatically call the constructor
+of the correct handler for whatever it is handed as template.
 
 =cut 
 
@@ -116,7 +117,9 @@ sub shallow_clone {
     if (ref($node)) {
         # should not clone children
         my ($tag, $attributes) = @$node; 
-        $attributes //= {};
+        if (ref($attributes) ne 'HASH') {
+            $attributes = {};
+        }
         my $new_node = [ $tag, { %$attributes } ];
         return $new_node;
     } else {
@@ -139,7 +142,9 @@ sub get_attribute {
     my ($self, $node, $attr) = @_;
     return unless ref($node);
     my ($tag, $attributes, @children) = @$node; 
-    $attributes //= {};
+    if (ref($attributes) ne 'HASH') {
+        $attributes = {};
+    }
     return $attributes->{$attr};
 }
 
@@ -160,9 +165,9 @@ sub set_attribute {
     my ($self, $node, $attr, $value) = @_;
     return unless ref($node);
     my ($tag, $attributes, @children) = @$node; 
-    if (!$attributes) {
+    if (ref($attributes) ne 'HASH') {
         $attributes = {};
-        $node->[1] = $attributes;
+        splice @$node, 1, 0, $attributes;
     }
     if (defined($value)) {
         return $attributes->{$attr} = $value;
@@ -177,7 +182,7 @@ sub set_attribute {
   @attr_names = $handler->list_attributes($node);
 
 Lists the I<names> of all (defined) attributes on the node.
-Text nodes have no attributes and generate and empty list.
+Text nodes have no attributes and generate an empty list.
 
 =cut
 
@@ -185,7 +190,7 @@ sub list_attributes {
     my ($self, $node) = @_;
     return unless ref($node);
     my ($tag, $attributes, @children) = @$node; 
-    $attributes //= {};
+    return unless ref($attributes) eq 'HASH';
     return sort keys %$attributes;
 }
 
@@ -219,7 +224,12 @@ have none.
 sub list_contents {
     my ($self, $node) = @_;
     return unless ref($node);
+    return unless (@$node > 1); # neither attributes nor content
     my ($tag, $attributes, @children) = @$node; 
+    if (ref($attributes) ne 'HASH') {
+        # not an attribute hash after all?
+        unshift @children, $attributes;
+    }
     return @children;
 }
 

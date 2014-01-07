@@ -1,3 +1,9 @@
+v0.1.2    2014-01-07 20:42:26 UTC
+
+  Positron::Handler::ArrayRef changes:
+  - Attribute HashRef no longer required to be present (but must still
+    be in second position if it is)
+
 v0.1.1    2013-12-20 20:44:36 UTC
 
   - Bugfix: used 'store' instead of 'nstore' to build a Storable
