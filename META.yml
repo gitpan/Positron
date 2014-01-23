@@ -27,4 +27,4 @@ requires:
   perl: v5.10.0
 resources:
   repository: git://github.com/bendeutsch/positron-template.git
-version: v0.1.2
+version: v0.1.3

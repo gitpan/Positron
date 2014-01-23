@@ -1,5 +1,5 @@
 package Positron::Handler::ArrayRef;
-our $VERSION = 'v0.1.2'; # VERSION
+our $VERSION = 'v0.1.3'; # VERSION
 
 =head1 NAME
 
@@ -7,7 +7,7 @@ Positron::Handler::ArrayRef - a DOM interface for ArrayRefs
 
 =head1 VERSION
 
-version v0.1.2
+version v0.1.3
 
 =head1 SYNOPSIS
 

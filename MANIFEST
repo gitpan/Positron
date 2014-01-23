@@ -54,6 +54,13 @@ t/Positron/Template/06-switch.t
 t/Positron/Template/07-dont-change-original-dom.t
 t/Positron/Template/08-structure-comments.t
 t/Positron/Template/09-includes.t
+t/Positron/Template/10-wraps.t
+t/Positron/Template/11-functions.t
 t/Positron/Template/include-malformed.store
 t/Positron/Template/include-plain.store
 t/Positron/Template/include-structure.store
+t/Positron/Template/wrap-malformed-none.store
+t/Positron/Template/wrap-plain-none.store
+t/Positron/Template/wrap-plain-plus.store
+t/Positron/Template/wrap-structure-none.store
+t/Positron/Template/wrap-structure-plus.store

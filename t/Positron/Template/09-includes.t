@@ -14,15 +14,6 @@ BEGIN {
 my $template = Positron::Template->new();
 $template->add_include_paths('t/Positron/Template/');
 
-my $dom = 
-[ 'div', {},
-    [ 'div', { style => "{. `include-outer-1.store`}" }, ],
-];
-my $inner =
-[ 'p', {},
-    "It works!",
-];
-
 sub dom {
     my ($quant, $filetype) = @_;
     return 
@@ -33,6 +24,32 @@ sub dom {
     ];
 }
 
+sub inplace_dom {
+    my ($quant, $filetype) = @_;
+    return 
+    [ 'section', {},
+        [ 'div', { style => "{,$quant inplace_$filetype }" },
+            "Placeholder content",
+        ],
+    ];
+}
+
+
+sub inner_dom {
+    my ($filetype) = @_;
+    my $dom = {
+        plain => [ 'p', {}, "It works!", ],
+        structure => 
+        ['p', {},
+            'It {$works}!',
+            [ 'ul', { style => '{@list}'},
+                [ 'li', {}, '{$title}' ],
+            ]
+        ],
+    }->{$filetype} or die "Unknown filetype $filetype!";
+    return $dom;
+}
+
 # Normally, the current versions of these should be included with the
 # distribution. This is an author's helper, should the test ever need to
 # be amended.
@@ -41,16 +58,7 @@ sub ensure_filetype {
     my $filename = 't/Positron/Template/' . "include-$filetype.store";
     if (not -e $filename) {
         # -e, not -r - if it's not readable, don't try writing, die later
-        my $dom = {
-            plain => [ 'p', {}, "It works!", ],
-            structure => 
-            ['p', {},
-                'It {$works}!',
-                [ 'ul', { style => '{@list}'},
-                    [ 'li', {}, '{$title}' ],
-                ]
-            ],
-        }->{$filetype} or die "Unknown filetype $filetype!";
+        my $dom = inner_dom($filetype);
         nstore($dom, $filename) or die "Storable::store failure";
     }
 }
@@ -64,7 +72,7 @@ my $data = {
 ensure_filetype('plain');
 
 is_deeply($template->process( dom('', 'plain'), $data ), ['section', {}, ['p', {}, "It works!"]], "Include a plain file, no quantifier");
-is_deeply($template->process( dom('+', 'plain'), $data ), ['section', {}, ['div', {}, ['p', {}, "It works!"]]], "Include a plain file");
+is_deeply($template->process( dom('+', 'plain'), $data ), ['section', {}, ['div', {}, ['p', {}, "It works!"]]], "Include a plain file, plus quantifier");
 
 ensure_filetype('structure');
 
@@ -76,8 +84,8 @@ my $expected_inner = ['p', {},
     ],
 ];
 
-is_deeply($template->process( dom('', 'structure'), $data ), ['section', {}, $expected_inner], "Include a plain file, no quantifier");
-is_deeply($template->process( dom('+', 'structure'), $data ), ['section', {}, ['div', {}, $expected_inner]], "Include a plain file");
+is_deeply($template->process( dom('', 'structure'), $data ), ['section', {}, $expected_inner], "Include a template file, no quantifier");
+is_deeply($template->process( dom('+', 'structure'), $data ), ['section', {}, ['div', {}, $expected_inner]], "Include a template file, plus quantifier");
 
 throws_ok {
     $template->process( dom('', 'nonexisting'), $data );
@@ -86,5 +94,29 @@ throws_ok {
 dies_ok {
     $template->process( dom('', 'malformed'), $data );
 } "Exception on malformed file";
+
+# Inplace includes from the environment: ',' sigil
+
+$data->{'inplace_plain'} = inner_dom('plain');
+$data->{'inplace_structure'} = inner_dom('structure');
+
+is_deeply($template->process( inplace_dom('', 'plain'), $data ), ['section', {}, ['p', {}, "It works!"]], "In-place include a plain DOM, no quantifier");
+is_deeply($template->process( inplace_dom('+', 'plain'), $data ), ['section', {}, ['div', {}, ['p', {}, "It works!"]]], "In-place include a plain DOM, plus quantifier");
+
+ensure_filetype('structure');
+
+# Here: not evaluating!
+$expected_inner = inner_dom('structure');
+
+is_deeply($template->process( inplace_dom('', 'structure'), $data ), ['section', {}, $expected_inner], "In-place include a template DOM, no quantifier");
+is_deeply($template->process( inplace_dom('+', 'structure'), $data ), ['section', {}, ['div', {}, $expected_inner]], "In-place include a template DOM, plus quantifier");
+
+# Inplace list of nodes
+
+$data->{'inplace_structure'} = [ inner_dom('plain'), inner_dom('structure') ];
+my @expected_inner = (inner_dom('plain'), inner_dom('structure'));
+
+is_deeply($template->process( inplace_dom('', 'structure'), $data ), ['section', {}, @expected_inner], "In-place include a DOM list, no quantifier");
+is_deeply($template->process( inplace_dom('+', 'structure'), $data ), ['section', {}, ['div', {}, @expected_inner]], "In-place include a DOM list, plus quantifier");
 
 done_testing();

@@ -1,5 +1,5 @@
 package Positron::Template;
-our $VERSION = 'v0.1.2'; # VERSION
+our $VERSION = 'v0.1.3'; # VERSION
 
 =head1 NAME
 
@@ -7,7 +7,7 @@ Positron::Template - a DOM based templating system
 
 =head1 VERSION
 
-version v0.1.2
+version v0.1.3
 
 =head1 SYNOPSIS
 
@@ -186,8 +186,12 @@ sub _process_element {
         return $self->_process_switch($node, $environment, $sigil, $quant, $tail);
     } elsif ($sigil eq '/') {
         return $self->_process_structure_comment($node, $environment, $sigil, $quant, $tail);
-    } elsif ($sigil eq '.') {
+    } elsif ($sigil ~~ ['.', ',']) {
         return $self->_process_include($node, $environment, $sigil, $quant, $tail);
+    } elsif ($sigil ~~ [':', ';']) {
+        return $self->_process_wrap($node, $environment, $sigil, $quant, $tail);
+    } elsif ($sigil eq '^') {
+        return $self->_process_function($node, $environment, $sigil, $quant, $tail);
     } else {
         my $new_node = $handler->shallow_clone($node);
         $handler->push_contents( $new_node, map { $self->_process_element($_, $environment) } $handler->list_contents($node));
@@ -295,24 +299,136 @@ sub _process_include {
 
     my @contents = ();
 
-    my $filename = Positron::Expression::evaluate($tail, $environment);
-    my $filepath = undef;
-    foreach my $include_path (@{$self->{'include_paths'}}) {
-        if (-r $include_path . $filename) {
-            $filepath = $include_path . $filename;
+    if ($sigil eq '.') {
+        # from file
+        my $filename = Positron::Expression::evaluate($tail, $environment);
+        my $filepath = undef;
+        foreach my $include_path (@{$self->{'include_paths'}}) {
+            if (-r $include_path . $filename) {
+                $filepath = $include_path . $filename;
+            }
+        }
+        if (not defined $filepath) {
+            croak "Could not find $filename (from $tail) for inclusion";
+        }
+
+
+        # automatically die if we can't read this
+        @contents = $handler->parse_file($filepath);
+        @contents = map { $self->_process_element($_, $environment) } @contents;
+    } else {
+        # from env
+        my $env_contents = Positron::Expression::evaluate($tail, $environment);
+        if ($env_contents) {
+            if (ref($env_contents) eq 'ARRAY') {
+                # special case: can't allow ['a', 'text'], must be [['a', 'text']], sorry
+                if ($handler->isa('Positron::Handler::ArrayRef') and not ref($env_contents->[0])) {
+                    @contents = ($env_contents);
+                } else {
+                    @contents = @$env_contents;
+                }
+            } else {
+                @contents = ($env_contents);
+            }
+        } else {
+            # warn?
+            @contents = ();
         }
     }
-    if (not defined $filepath) {
-        croak "Could not find $filename (from $tail) for inclusion";
-    }
-
-
-    # automatically die if we can't read this
-    @contents = $handler->parse_file($filepath);
-    @contents = map { $self->_process_element($_, $environment) } @contents;
 
     my $keep = ($quant eq '+');
     return ($keep) ? ($self->_clone_and_resolve($node, $environment, @contents)) : @contents;
+}
+
+# TODO: Refactor. Either extract the parts that are common between _include and
+#       _wrap, or just push them both together in one function.
+sub _process_wrap {
+	my ($self, $node, $environment, $sigil, $quant, $tail) = @_;
+	my $handler = $self->{'handler'};
+
+    my @contents = ();
+
+    if ($tail =~ m{ \S }xms) {
+
+        my @wrapping_contents;
+        if ($sigil eq ':') {
+            # filename, read that and include "us".
+            my $filename = Positron::Expression::evaluate($tail, $environment);
+            my $filepath = undef;
+            foreach my $include_path (@{$self->{'include_paths'}}) {
+                if (-r $include_path . $filename) {
+                    $filepath = $include_path . $filename;
+                }
+            }
+            if (not defined $filepath) {
+                croak "Could not find $filename (from $tail) for wrapping";
+            }
+            # automatically die if we can't read this
+            @wrapping_contents = $handler->parse_file($filepath);
+        } else {
+            # from env
+            my $env_contents = Positron::Expression::evaluate($tail, $environment);
+            if ($env_contents) {
+                if (ref($env_contents) eq 'ARRAY') {
+                    # special case: can't allow ['a', 'text'], must be [['a', 'text']], sorry
+                    if ($handler->isa('Positron::Handler::ArrayRef') and not ref($env_contents->[0])) {
+                        @wrapping_contents = ($env_contents);
+                    } else {
+                        @wrapping_contents = @$env_contents;
+                    }
+                } else {
+                    @wrapping_contents = ($env_contents);
+                }
+            } else {
+                # warn?
+                @wrapping_contents = ();
+            }
+        }
+
+        # TODO: resolve later? We'd need to clone $node and remove structure sigils to defeat recursion
+        # Resolve now; also allows clone_and_resolve to clear sigils to defeat recursion
+        @contents = map { $self->_process_element($_, $environment) } $handler->list_contents($node);
+        # only quant-less versions pass the parent
+        my @passed_nodes = $quant ? @contents : $self->_clone_and_resolve($node, $environment, @contents);
+
+        $environment = Positron::Environment->new({':' => [ @passed_nodes ]}, { parent => $environment, immutable => 0});
+
+        @contents = @wrapping_contents;
+        @contents = map { $self->_process_element($_, $environment) } @contents;
+
+    } else {
+        # inclusion marker
+        my $passed_nodes = $environment->get(':') || [];
+        # On error, just kill all (warn, maybe?)
+        # Remember: already resolved!
+        @contents = @$passed_nodes;
+    }
+
+    # this works for both cases!
+    my $keep = ($quant eq '+');
+    return ($keep) ? ($self->_clone_and_resolve($node, $environment, @contents)) : @contents;
+}
+
+sub _process_function {
+	my ($self, $node, $environment, $sigil, $quant, $tail) = @_;
+	my $handler = $self->{'handler'};
+    my $function = Positron::Expression::evaluate($tail, $environment);
+
+    # The "self" node can be part of the arguments (quant ''), receive the results of the function
+    # (quant '+'), or be dropped altogether (quant '-').
+	my $keep = ($quant eq '+');
+    my $pass_self = (not $keep and $quant ne '-');
+
+	my @contents = ();
+    # Need these in any case:
+    @contents = map { $self->_process_element($_, $environment) } $handler->list_contents($node);
+    if ($pass_self) {
+        # we could also need to pass "self".
+        @contents = $self->_clone_and_resolve($node, $environment, @contents);
+    }
+
+    @contents = $function->(@contents);
+	return ($keep) ? ($self->_clone_and_resolve($node, $environment, @contents)) : @contents;
 }
 
 
@@ -352,7 +468,7 @@ sub _handler_for {
 sub _get_structure_sigil {
     my ($self, $node) = @_;
     my $handler = $self->{'handler'};
-    my $structure_finder = $self->_make_finder('@?!/.:,;|');
+    my $structure_finder = $self->_make_finder('@?!/.:,;|^');
     foreach my $attr ($handler->list_attributes($node)) {
         my $value = $handler->get_attribute($node, $attr);
         if ($value =~ m{ $structure_finder }xms) {
@@ -366,7 +482,7 @@ sub _remove_structure_sigils {
     my ($self, $node) = @_;
     my $handler = $self->{'handler'};
     # NOTE: we remove '=' here as well, even though it's not a structure sigil!
-    my $structure_finder = $self->_make_finder('@?!/.:,;=|');
+    my $structure_finder = $self->_make_finder('@?!/.:,;=|^');
     foreach my $attr ($handler->list_attributes($node)) {
         my $value = $handler->get_attribute($node, $attr);
         my $did_change = ($value =~ s{ $structure_finder }{}xmsg);
